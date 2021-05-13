@@ -24,7 +24,7 @@ import tqdm
 # PARSING ARGUMENTS  *********************************************************
 # Elegimos el dataset que queremos entrenar
 parser = argparse.ArgumentParser(description='Select the dataset size')
-parser.add_argument('-dataset', default=None,
+parser.add_argument('-dataset', default='Mnist',
                     help='Choose the dataset to train'
                          '  - Hollywood2'
                          '  - HMDB51'
@@ -35,15 +35,16 @@ parser.add_argument('-dataset', default=None,
                          '  - HOHA'
                          '  - UCF11'
                          '  - UCF50'
-                         '  - UCF101')
-parser.add_argument('-frames', default=50, type=int,
+                         '  - UCF101'
+                         '  - SimplifiedVideo')
+parser.add_argument('-frames', default=784, type=int,
                     help='Set the length in frames for the videos')
 parser.add_argument('-size', default=-1, type=int,
                     help='Set the size in % for the dataset')
 parser.add_argument('-workers', default=2, type=int,
                     help='Choose the amount of workers to parallelize. (default=2)')
 parser.add_argument('-makeStates', default=-1, type=int,
-                    help='Choose to train code the states.')
+                    help='Choose to train codeX the states.')
 parser.add_argument('-makeModel', default=-1, type=int,
                     help='Choose to initialise the rservoir')
 parser.add_argument('-readOut', default='Forest',
@@ -72,23 +73,36 @@ files_path = dataset_path + 'Splits/' + dataset + '_files.txt'
 models_path = dataset_path + 'Models/'
 states_path = dataset_path + 'States/'
 results_path = dataset_path + 'Results/'
+
 if dataset == 'IXMAS':
     frame_height = 64
     frame_width = 48
+elif dataset == 'SimplifiedVideos' or dataset == 'Mnist' or 'TwoClassVideos'\
+        or 'SquaresVsCrosses':
+    frame_height = 28
+    frame_width = 28
 else:
     frame_height = 240
     frame_width = 320
-# PARSING ARGUMENTS  ***************************************************************************************************
+
+# PARSING ARGUMENTS  **********************************************************
+# *****************************************
 
 
 def initialise_esn(model=False):
     # Parameters
-    if rgb:
+    if dataset == 'Mnist':
+        n_inputs = 1
+        units = 20
+        layers = 4
+    elif rgb:
         n_inputs = frame_height * frame_width * 3
+        units = 100
+        layers = 4
     else:
         n_inputs = frame_height * frame_width
-    units = 500
-    layers = 4
+        units = 100
+        layers = 4
 
     IPconf = {}
     IPconf['DeepIP'] = 0
@@ -101,7 +115,9 @@ def initialise_esn(model=False):
 
     readout = {}
     readout['regularizations'] = np.array([0.001, 0.01, 0.1])  # 0.0001, 0.001, 0.01
-    readout['trainMethod'] = readOut  # 'Ridge'  # Lasso # 'Normal'  # 'SVD' # 'Multiclass' # 'MLP'
+    readout['trainMethod'] = 'Forest'  # 'Ridge'  # Lasso # 'Normal'  #
+    # 'SVD' #
+    # 'Multiclass' # 'MLP'
 
     reservoirConf = {}
     reservoirConf['connectivity'] = 1
@@ -135,56 +151,66 @@ else:
 def worker(_video_file):
     head, tail = path_leaf(_video_file)
 
-    if (os.path.exists(_video_file) and (not os.path.exists(states_path +
-                                                            tail[:-4] +
-                                                            '.npy')) or make_states == 1):
+    if (os.path.exists(_video_file) or make_states == 1):
         load_video_and_target(_video_file)
 
 
 def load_video_and_target(_video_file):
-    if os.path.exists(_video_file) and _video_file[-4:] == '.avi':
-        video_arr = []
-        cap = cv2.VideoCapture(_video_file)
-        frame_count = 0
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if frame is None:
-                break
-            else:
-                frame_count += 1
-            if rgb:
-                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                if rgb_frame.shape[0] != frame_height and rgb_frame.shape[1]\
-                        != frame_width:
-                    rgb_frame = cv2.resize(rgb_frame, (frame_height, frame_width))
-                red_frame = rgb_frame[:, :, 0].reshape(-1, 1)
-                greem_frame = rgb_frame[:, :, 1].reshape(-1, 1)
-                blue_frame = rgb_frame[:, :, 2].reshape(-1, 1)
-
-                rgb_flat = np.concatenate([red_frame, greem_frame, blue_frame])
-                scaler = MaxAbsScaler()
-                scaler.fit(rgb_flat)
-
-                video_arr.append(rgb_flat)
-
-            else:
-                gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                if gray_frame.shape[0] != frame_height or gray_frame.shape[
-                    1] != frame_width:
-                    gray_frame = cv2.resize(gray_frame, (frame_height, frame_width))
-                gray_frame = gray_frame.astype('float32')/255
-
-                gray_flat = gray_frame.reshape(-1, 1)
-                # scaler = MaxAbsScaler()
-                # scaler.fit(gray_flat)
-
-                video_arr.append(gray_flat)
-        new_video_arr = video_arr
-
-        _video = np.concatenate(new_video_arr, axis=1)
+    if dataset == 'SimplifiedVideos' or 'TwoClassVideos':
+        _video = np.load(_video_file)
+        _video = _video.reshape(-1, frame_objective)
         _states = ESN.computeState([_video])
         head, tail = path_leaf(_video_file)
         np.save(states_path + tail[:-4], _states, allow_pickle=False)
+    if dataset == 'Mnist':
+        _video = np.load(_video_file)
+        _states = ESN.computeState([_video])
+        head, tail = path_leaf(_video_file)
+        np.save(states_path + tail[:-4], _states, allow_pickle=False)
+    else:
+        if os.path.exists(_video_file) and _video_file[-4:] == '.avi':
+            video_arr = []
+            cap = cv2.VideoCapture(_video_file)
+            frame_count = 0
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if frame is None:
+                    break
+                else:
+                    frame_count += 1
+                if rgb:
+                    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    if rgb_frame.shape[0] != frame_height and rgb_frame.shape[1]\
+                            != frame_width:
+                        rgb_frame = cv2.resize(rgb_frame, (frame_height, frame_width))
+                    red_frame = rgb_frame[:, :, 0].reshape(-1, 1)
+                    greem_frame = rgb_frame[:, :, 1].reshape(-1, 1)
+                    blue_frame = rgb_frame[:, :, 2].reshape(-1, 1)
+
+                    rgb_flat = np.concatenate([red_frame, greem_frame, blue_frame])
+                    scaler = MaxAbsScaler()
+                    scaler.fit(rgb_flat)
+
+                    video_arr.append(rgb_flat)
+
+                else:
+                    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    if gray_frame.shape[0] != frame_height or gray_frame.shape[
+                        1] != frame_width:
+                        gray_frame = cv2.resize(gray_frame, (frame_height, frame_width))
+                    gray_frame = gray_frame.astype('float32')/255
+
+                    gray_flat = gray_frame.reshape(-1, 1)
+                    # scaler = MaxAbsScaler()
+                    # scaler.fit(gray_flat)
+
+                    video_arr.append(gray_flat)
+            new_video_arr = video_arr
+
+            _video = np.concatenate(new_video_arr, axis=1)
+            _states = ESN.computeState([_video])
+            head, tail = path_leaf(_video_file)
+            np.save(states_path + tail[:-4], _states, allow_pickle=False)
 
 
 def get_balanced_dataset(_files, _clase, length=300, ratio=1):
@@ -299,7 +325,8 @@ def get_train_test_files(path, test_g=1, val_g=-1, size=-1, allto=True, overfit=
                                 break
 
                 if size is not -1:
-                    _train_files = np.random.choice(_train_files,int(len(_train_files) * (size/100)), replace=False)
+                    _train_files = np.random.choice(_train_files, int(len(
+                        _train_files) * (size/100)), replace=False)
                     _test_files = np.random.choice(_test_files, int(len(_test_files) * (size/100)), replace=False)
                     if val_g != -1:
                         _val_files = np.random.choice(_val_files, int(len(_val_files) * (size/100)), replace=False)
@@ -317,6 +344,38 @@ def get_train_test_files(path, test_g=1, val_g=-1, size=-1, allto=True, overfit=
             _train_files, _test_files = train_test_split(_files,
                                                          test_size=0.1,
                                                          shuffle=True)
+            print('Files original: ' + str(len(_train_files)))
+            # if size != -1:
+            #     _train_files = np.random.choice(_train_files, int(len(
+            #         _train_files) * (size/100)), replace=False)
+            #     print('Files reducido: ' + str(len(_train_files)))
+
+            # # Unbalance the dataset
+            # print('Dataset unbalancing')
+            # good_indices = []
+            # bad_indices = []
+            # for i in range(len(_train_files)):
+            #     _file = _train_files[i]
+            #     if _file.find('_Eight_') != -1:
+            #         good_indices.append(i)
+            #     else:
+            #         bad_indices.append(i)
+            # print('Balanced files')
+            # print('Eighs: ' + str(len(good_indices)))
+            # print('Rest: ' + str(len(bad_indices)))
+            # good_indices = np.random.choice(good_indices, int(len(
+            #     good_indices) * 0.6), replace=False)
+            # bad_indices = np.random.choice(bad_indices, int(len(
+            #     bad_indices) * 0.1), replace=False)
+            # indices = list(bad_indices) + list(good_indices)
+            # _final_train_files = []
+            # for i in np.random.choice(indices, len(indices), replace=False):
+            #     _final_train_files.append(_train_files[i])
+            # _train_files = _final_train_files
+            #
+            # print('Unbalanced files')
+            # print('Eighs: ' + str(len(good_indices)))
+            # print('Rest: ' + str(len(bad_indices)))
 
     return _train_files, _test_files, None
 
@@ -363,22 +422,8 @@ def get_targets_from_files(_files):
 
 if __name__ == '__main__':
     t1 = time.time()
-    if dataset is None:
-        print(' You must select a dataset from:'
-              '  - Hollywood2'
-              '  - HMDB51'
-              '  - Olympic Sports'
-              '  - KTH'
-              '  - Weizmann'
-              '  - IXMAS'
-              '  - HOHA'
-              '  - UCF11'
-              '  - UCF50'
-              '  - UCF101')
-        exit()
-    else:
-        print(' Training ' + dataset)
 
+    print(' Training ' + dataset)
     print(' Frames set to: ' + str(frame_objective))
     if dataset_size == -1:
         print(' Dataset size set to 100%')
@@ -391,18 +436,24 @@ if __name__ == '__main__':
         os.mkdir(states_path)
 
     # Generate the class dictionary form the folders
-    target_dic = {}
-    for i, name in enumerate(os.listdir(video_path)):
-        target_dic[name] = i
+    if dataset == 'Mnist':
+        class_names = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six',
+                       'Seven', 'Eight', 'Nine']
+        target_dic = {'Zero': 0, 'One': 1, 'Two': 2, 'Three': 3, 'Four': 4,
+                      'Five': 5, 'Six': 6, 'Seven': 7, 'Eight': 8, 'Nine': 9}
+    else:
+        target_dic = {}
+        for i, name in enumerate(os.listdir(video_path)):
+            target_dic[name] = i
+        class_names = list(target_dic.keys())
 
-    with open('target_dic.pkl', 'wb') as f:
-        pkl.dump(target_dic, f, pkl.HIGHEST_PROTOCOL)
-    class_names = list(target_dic.keys())
+    print(target_dic)
 
     # We load the whole dataset and calculate its states
     # Initialise the ESN reservoir
     # We check if the base model is already generated and load it if it is so
-    # THIS LINES ARE PUT IN THE START OF THE CODE TO ALLOW THE PARALLEL THREADS TO ACCESS IT
+    # THIS LINES ARE PUT IN THE START OF THE CODE TO ALLOW THE PARALLEL THREADS
+    # TO ACCESS IT
 
     # We load every filename into a list
     files = []
@@ -411,13 +462,13 @@ if __name__ == '__main__':
         for row in file_reader:
             files.append(row[0])
 
-    # Load all the videos to generate the code them into state form save at state_path
-    print('State codification ...')
-    pool = multiprocessing.Pool(processes=n_workers)
-    for _ in tqdm.tqdm(pool.imap_unordered(worker, files), total=len(files)):
-        pass
-    # for file in files:
-    #     worker(file)
+    # Load all the videos to generate the codeX them into state form save at
+    # state_path
+    if make_states != -1 or make_model != -1:
+        print('State codification ...')
+        pool = multiprocessing.Pool(processes=n_workers)
+        for _ in tqdm.tqdm(pool.imap_unordered(worker, files), total=len(files)):
+            pass
 
     print('State codification finished ...')
     t2 = time.time()
@@ -425,7 +476,8 @@ if __name__ == '__main__':
 
     # Generate the train test files for a test set of the group indicate from the arguments
     global_train_files, global_test_files, global_val_files = \
-        get_train_test_files(files_path, test_g=1, allto=True)
+        get_train_test_files(files_path, test_g=1, size=dataset_size,
+                             allto=True)
 
     # Get the states for the test files so we dont have to load them for each model
     global_train_states = load_states(global_train_files)
@@ -481,8 +533,9 @@ if __name__ == '__main__':
     print('        Recall: ' + str(global_test_recall))
     print('     Precision: ' + str(global_test_precision))
 
-    df_predictions.to_pickle('predictions.pkl')
-    with open(results_path + dataset + '_fitted_model.pkl', 'wb') as f:
+    with open(results_path + dataset + '_fitted_model_A' + str(
+            int(global_train_accuracy*100)) + '.pkl',
+              'wb') as f:
         pkl.dump(ESN, f, pkl.HIGHEST_PROTOCOL)
 
 

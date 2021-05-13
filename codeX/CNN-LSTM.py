@@ -20,7 +20,7 @@ from sklearn.metrics import cohen_kappa_score
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import multilabel_confusion_matrix
 
-data_dir = '../datasets/UCF11/Videos/'
+data_dir = '../datasets/UCF11/Videos-row/'
 img_height, img_width = 160, 120
 seq_len = 20
 

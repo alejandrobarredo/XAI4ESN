@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from SystemInitialization import ESN
+from DeepESN import DeepESN as DeepESNorig
 from scipy import stats
 from GenerateTimeSeries import TimeSeries
 import pandas as pd
@@ -9,6 +10,47 @@ import os
 import matplotlib.gridspec as gridspec
 from pyts.image import RecurrencePlot
 from scipy.signal import savgol_filter
+
+
+def initialise_esn(inputs=28*28, units=100, layers=4, DeepIP=0, indexes=[1],
+                   eta=0.000001, mu=0, Nepochs=10, sigma=0.1, threshold=0.1,
+                   regularizations=np.array([0.001, 0.01, 0.1]),
+                   trainMethod='Forest', connectivity=1, iss=0.6,
+                   lis=0.01, rhos=0.9, model=False):
+
+    # Parameters
+    n_inputs = inputs
+
+    IPconf = {}
+    IPconf['DeepIP'] = DeepIP
+    IPconf['indexes'] = indexes
+    IPconf['eta'] = eta
+    IPconf['mu'] = mu
+    IPconf['Nepochs'] = Nepochs
+    IPconf['sigma'] = sigma
+    IPconf['threshold'] = threshold
+
+    readout = {}
+    readout['regularizations'] = regularizations
+    readout['trainMethod'] = trainMethod  # 'Ridge'  # Lasso # 'Normal'
+    # 'SVD' # 'Multiclass' # 'MLP'
+
+    reservoirConf = {}
+    reservoirConf['connectivity'] = connectivity
+
+    _configs = {}
+    _configs['IPconf'] = IPconf
+    _configs['readout'] = readout
+    _configs['reservoirConf'] = reservoirConf
+    _configs['iss'] = iss
+    _configs['lis'] = lis  # 0.2
+    _configs['rhos'] = rhos  # 1.3
+
+    if model:
+        ESNorig = DeepESNorig(n_inputs, units, layers, _configs)
+        return ESNorig, _configs
+    else:
+        return _configs
 
 # Code to generates the different experiments carried out with real data.
 #       Data is stored at ./data/
@@ -118,6 +160,7 @@ save_name = experiment + '_exp_u' + str(units) \
             + '_l' + str(layers) + '_sp' + str(spectral) \
             + '_leaky' + str(leaky) + '_is' + str(i_scale) \
             + '_spa' + str(spars)
+
 
 # Initialise the ESN and train it
 ESNx = ESN(data, target, length, memory, n_inputs, units,
