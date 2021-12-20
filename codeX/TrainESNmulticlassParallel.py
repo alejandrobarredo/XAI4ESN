@@ -41,6 +41,8 @@ parser.add_argument('-frames', default=784, type=int,
                     help='Set the length in frames for the videos')
 parser.add_argument('-size', default=-1, type=int,
                     help='Set the size in % for the dataset')
+parser.add_argument('-frame_width', default=28, type=int)
+parser.add_argument('-frame_height', default=28, type=int)
 parser.add_argument('-workers', default=2, type=int,
                     help='Choose the amount of workers to parallelize. (default=2)')
 parser.add_argument('-makeStates', default=-1, type=int,
@@ -60,6 +62,8 @@ args = parser.parse_args()
 dataset = args.dataset
 frame_objective = args.frames
 dataset_size = args.size
+frame_width = args.frame_width
+frame_height = args.frame_height
 n_workers = args.workers
 make_states = args.makeStates
 make_model = args.makeModel
@@ -74,26 +78,17 @@ models_path = dataset_path + 'Models/'
 states_path = dataset_path + 'States/'
 results_path = dataset_path + 'Results/'
 
-if dataset == 'IXMAS':
-    frame_height = 64
-    frame_width = 48
-elif dataset == 'SimplifiedVideos' or dataset == 'Mnist' or 'TwoClassVideos'\
-        or 'SquaresVsCrosses':
-    frame_height = 28
-    frame_width = 28
-else:
-    frame_height = 240
-    frame_width = 320
-
 # PARSING ARGUMENTS  **********************************************************
 # *****************************************
-
-
 def initialise_esn(model=False):
     # Parameters
     if dataset == 'Mnist':
         n_inputs = 1
         units = 20
+        layers = 4
+    elif dataset == 'SquaresVsCrosses':
+        n_inputs = frame_height * frame_width
+        units = 50
         layers = 4
     elif rgb:
         n_inputs = frame_height * frame_width * 3
@@ -138,25 +133,20 @@ def initialise_esn(model=False):
 
 
 # Initialise the ESN reservoir
-# We check if the base model is already generated and load it if it is so
-if not os.path.exists(models_path + 'Base_model.pkl') or make_model == 1:
-    ESN, configs = initialise_esn(model=True)
-    with open(models_path + 'Base_model.pkl', 'wb') as f:
-        pkl.dump([ESN, configs], f, pkl.HIGHEST_PROTOCOL)
-else:
-    with open(models_path + 'Base_model.pkl', 'rb') as f:
-        ESN, configs = pkl.load(f)
+ESN, configs = initialise_esn(model=True)
+with open(models_path + 'Base_model.pkl', 'wb') as f:
+    pkl.dump([ESN, configs], f, pkl.HIGHEST_PROTOCOL)
 
 
 def worker(_video_file):
     head, tail = path_leaf(_video_file)
 
-    if (os.path.exists(_video_file) or make_states == 1):
+    if os.path.exists(_video_file) or make_states == 1:
         load_video_and_target(_video_file)
 
 
 def load_video_and_target(_video_file):
-    if dataset == 'SimplifiedVideos' or 'TwoClassVideos':
+    if dataset == 'SquaresVsCrosses':
         _video = np.load(_video_file)
         _video = _video.reshape(-1, frame_objective)
         _states = ESN.computeState([_video])
@@ -532,6 +522,8 @@ if __name__ == '__main__':
     print('      Accuracy: ' + str(global_test_accuracy))
     print('        Recall: ' + str(global_test_recall))
     print('     Precision: ' + str(global_test_precision))
+
+    print(ESN.Nu)
 
     with open(results_path + dataset + '_fitted_model_A' + str(
             int(global_train_accuracy*100)) + '.pkl',

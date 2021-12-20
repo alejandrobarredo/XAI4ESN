@@ -118,7 +118,7 @@ if experiment == 'Narma':
 elif experiment == 'Battery':
     # Battery
     length = 30000
-    with open('./data/Batteries/B0005.pkl', 'rb') as f:
+    with open('./data/Battery/B0005.pkl', 'rb') as f:
         battery = pkl.load(f)
 
     data = battery.Current.values[:length].reshape(1, 1, -1)

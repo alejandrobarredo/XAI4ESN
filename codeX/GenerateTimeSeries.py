@@ -238,7 +238,6 @@ class TimeSeries:
             _target = np.array(y[11:])
 
         if _memory is not None:
-            print('memory')
             _target = np.roll(_target, -_memory)
             _target = _target[:-_memory]
             _target = np.concatenate((_target, (np.zeros(_memory*2))))

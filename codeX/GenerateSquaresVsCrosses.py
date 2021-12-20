@@ -11,6 +11,15 @@ models_path = dataset_path + 'Models/'
 states_path = dataset_path + 'States/'
 results_path = dataset_path + 'Results/'
 
+
+def calculate_area(_x, _y, _side=5):
+    _new_positions = []
+    for i_h in range(_side):
+        for i_w in range(_side):
+            _new_positions.append([_x + i_h, _y + i_w])
+    return _new_positions
+
+
 # TO VISUALIZE VIDEOS SET show TO TRUE
 show = False
 if show:
@@ -25,13 +34,15 @@ n_videos = 600
 n_frames = 60
 fps = 30
 
+side = 50
+
 
 # Make squares between 2-6
 if classes == 0 or classes == 2:
     for cont_video in tqdm(range(n_videos)):
-        border_distance = np.random.randint(1, 7, 1, dtype=int)
+        border_distance = np.random.randint(6, 23, 1, dtype=int)
         lower_bound = 0 + border_distance
-        higher_bound = 28 - border_distance
+        higher_bound = side - border_distance
 
         blob = [lower_bound, lower_bound]
 
@@ -46,13 +57,16 @@ if classes == 0 or classes == 2:
             blob = [higher_bound, higher_bound]
 
         video = []
-        video_frame = np.zeros((28, 28))
+
         for frame in range(n_frames):
-            new_frame = deepcopy(video_frame)
-            new_frame[blob[0], blob[1]] = 1.0
+            #new_frame = np.random.rand(side, side) * 0.3
+            new_frame = np.zeros((side, side))
+            new_positions = calculate_area(blob[0], blob[1])
+            for position in new_positions:
+                new_frame[position[0], position[1]] = 1.0
             # To visualize the videos uncomment
             if show and frame % 5 == 0:
-                plt.imshow(new_frame, cmap='binary')
+                plt.imshow(new_frame)
                 plt.pause(0.01)
             video.append(new_frame)
             if blob[0] == lower_bound and lower_bound <= blob[1] < higher_bound:
@@ -83,9 +97,9 @@ if classes == 0 or classes == 2:
 # Make crosses within 6
 if classes == 1 or classes == 2:
     for cont_video in tqdm(range(n_videos)):
-        border_distance = np.random.randint(8, 15, 1, dtype=int)
+        border_distance = np.random.randint(6, 23, 1, dtype=int)
         lower_bound = 0 + border_distance
-        higher_bound = 28 - border_distance
+        higher_bound = side - border_distance
         blob = [lower_bound, lower_bound]
 
         slope = np.random.randint(1, 3, 1, dtype=int)
@@ -112,10 +126,13 @@ if classes == 1 or classes == 2:
             normal = 1
 
         video = []
-        video_frame = np.zeros((28, 28))
+
         for frame in range(n_frames):
-            new_frame = deepcopy(video_frame)
-            new_frame[blob[0], blob[1]] = 1.0
+            #new_frame = np.random.rand(side, side) * 0.3
+            new_frame = np.zeros((side, side))
+            new_positions = calculate_area(blob[0], blob[1])
+            for position in new_positions:
+                new_frame[position[0], position[1]] = 1.0
             # To visualize the videos uncomment
             if show and frame % 5 == 0:
                 plt.imshow(new_frame, cmap='binary')
@@ -126,16 +143,16 @@ if classes == 1 or classes == 2:
                     blob[diagonal] < higher_bound:
                 blob[normal] = blob[normal] + normal_direction
                 blob[diagonal] = blob[diagonal] + diag_direction
-            if blob[normal] == lower_bound:
+            if blob[normal] <= lower_bound:
                 normal_direction = 1
                 blob[normal] = blob[normal] + normal_direction
-            if blob[normal] == higher_bound:
+            if blob[normal] >= higher_bound:
                 normal_direction = -1
                 blob[normal] = blob[normal] + normal_direction
-            if blob[diagonal] == lower_bound:
+            if blob[diagonal] <= lower_bound:
                 diag_direction = slope
                 blob[diagonal] = blob[diagonal] + diag_direction
-            if blob[diagonal] == higher_bound:
+            if blob[diagonal] >= higher_bound:
                 diag_direction = -1 * slope
                 blob[diagonal] = blob[diagonal] + diag_direction
 
