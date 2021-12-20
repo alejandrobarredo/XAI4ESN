@@ -19,7 +19,6 @@ def initialise_esn(inputs=28*28, units=100, layers=4, DeepIP=0, indexes=[1],
 
     # Parameters
     n_inputs = inputs
-
     IPconf = {}
     IPconf['DeepIP'] = DeepIP
     IPconf['indexes'] = indexes
